@@ -1,9 +1,6 @@
 -- VoiceOps Sample Database Schema
 -- For local chatbot development
 
-
-\c voiceops_sample;
-
 -- Organizations
 CREATE TABLE orgs (
   id SERIAL PRIMARY KEY,
