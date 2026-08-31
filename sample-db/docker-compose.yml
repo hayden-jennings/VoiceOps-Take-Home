@@ -1,0 +1,18 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: voiceops
+      POSTGRES_USER: voiceops
+      POSTGRES_PASSWORD: voiceops
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./02-app-role.sql:/docker-entrypoint-initdb.d/02-app-role.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voiceops"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
