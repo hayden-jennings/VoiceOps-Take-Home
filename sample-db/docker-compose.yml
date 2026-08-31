@@ -11,6 +11,7 @@ services:
     volumes:
       - ./init.sql:/docker-entrypoint-initdb.d/01-init.sql
       - ./02-app-role.sql:/docker-entrypoint-initdb.d/02-app-role.sql
+      - ./03-dashboard-instances.sql:/docker-entrypoint-initdb.d/03-dashboard-instances.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U voiceops"]
       interval: 5s

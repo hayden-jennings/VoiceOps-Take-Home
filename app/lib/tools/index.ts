@@ -8,6 +8,7 @@ import { listCalls } from "./listCalls";
 import { getCallDetail } from "./getCallDetail";
 import { runReadonlySql } from "./runReadonlySql";
 import { generateChart } from "./generateChart";
+import { showDashboard } from "./showDashboard";
 import { ToolResult } from "@/lib/types";
 
 const dateProps = {
@@ -162,6 +163,40 @@ export const TOOL_SCHEMAS: Anthropic.Tool[] = [
       required: ["type", "title", "labels", "series"],
     },
   },
+  {
+    name: "show_dashboard",
+    description:
+      "Open or update a persistent dashboard panel next to the chat — something the user can keep open, filter by hand, and come back to later. Distinct from generate_chart: use this when the user wants an ongoing view into a rep, a competitor, objection patterns, or a set of calls to browse, not a one-off visual. " +
+      "Pass instanceId to update a dashboard already open in this conversation instead of opening a new one (e.g. the user asks to change a filter on it). " +
+      "params shape per view — rep_scorecard: {repName?, dateFrom?, dateTo?}. competitive_intelligence: {competitor?, dateFrom?, dateTo?}. objection_funnel: {objectionType?, repName?, dateFrom?, dateTo?}. call_explorer: {repName?, disposition?, competitor?, objectionOutcome?, summaryContains?, dateFrom?, dateTo?} — same fields as the matching query tool.",
+    input_schema: {
+      type: "object",
+      properties: {
+        view: {
+          type: "string",
+          enum: [
+            "rep_scorecard",
+            "competitive_intelligence",
+            "call_explorer",
+            "objection_funnel",
+          ],
+        },
+        title: {
+          type: "string",
+          description: "Short human title, e.g. 'Sarah Johnson — Scorecard'",
+        },
+        params: {
+          type: "object",
+          description: "View-specific filters — see tool description for the shape per view",
+        },
+        instanceId: {
+          type: "number",
+          description: "Update this existing dashboard instance instead of creating a new one",
+        },
+      },
+      required: ["view", "title", "params"],
+    },
+  },
 ];
 
 export const TOOL_STATUS_LABELS: Record<string, string> = {
@@ -174,6 +209,7 @@ export const TOOL_STATUS_LABELS: Record<string, string> = {
   get_call_detail: "Pulling up that call...",
   run_readonly_sql: "Running a custom query...",
   generate_chart: "Building a chart...",
+  show_dashboard: "Opening a dashboard...",
 };
 
 export function toolStatusLabel(name: string): string {
@@ -194,6 +230,8 @@ const dispatch: Record<string, (input: ToolInput) => Promise<ToolResult<unknown>
   run_readonly_sql: (input) => runReadonlySql(input.query as string),
   generate_chart: (input) =>
     generateChart(input as unknown as Parameters<typeof generateChart>[0]),
+  show_dashboard: (input) =>
+    showDashboard(input as unknown as Parameters<typeof showDashboard>[0]),
 };
 
 export async function callTool(

@@ -2,7 +2,25 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function getSystemPrompt(): string {
+export interface OpenDashboard {
+  instanceId: number;
+  view: string;
+  title: string;
+  params: Record<string, unknown>;
+}
+
+function openDashboardsBlock(openDashboards: OpenDashboard[]): string {
+  if (openDashboards.length === 0) return "";
+  const lines = openDashboards
+    .map(
+      (d) =>
+        `- instanceId ${d.instanceId}: ${d.view} "${d.title}" params=${JSON.stringify(d.params)}`
+    )
+    .join("\n");
+  return `\n\nDashboards currently open in this conversation:\n${lines}\nWhen the user asks to filter, update, or tweak one of these, call show_dashboard with the matching instanceId so it updates in place — don't open a new one. Only omit instanceId when they're asking for something genuinely new.`;
+}
+
+export function getSystemPrompt(openDashboards: OpenDashboard[] = []): string {
   return `You are the VoiceOps assistant, embedded in a chat product for sales managers and sales leaders at Acme Insurance. The people you're talking to are not engineers — they think in reps, calls, deals, and coaching, not tables and queries.
 
 Today's date is ${todayIso()}. This is the actual current date — use it as ground truth for any relative date in a question ("this month," "last 30 days," "this quarter," etc). Do not guess a date or fall back on any other assumption.
@@ -17,5 +35,5 @@ Keep answers focused and conversational — a sales manager wants the point, not
 
 You have no vision into the images generate_chart produces — you know the data you sent it, not what the rendered chart actually looks like. Talk about the underlying data and the insight, never about the chart's visual appearance (colors, layout, "as you can see in red...") — you can't verify any of that.
 
-If you're ever unable to fully investigate before you have to answer, share what you did find rather than giving an empty or unhelpful response.`;
+If you're ever unable to fully investigate before you have to answer, share what you did find rather than giving an empty or unhelpful response.${openDashboardsBlock(openDashboards)}`;
 }

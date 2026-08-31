@@ -1,4 +1,5 @@
 import { runAgentLoop, ChatMessage } from "@/lib/agentLoop";
+import { OpenDashboard } from "@/lib/systemPrompt";
 
 function iteratorToNdjsonStream(
   iterator: AsyncGenerator<unknown>
@@ -17,8 +18,12 @@ function iteratorToNdjsonStream(
 }
 
 export async function POST(request: Request) {
-  const { messages }: { messages: ChatMessage[] } = await request.json();
-  const stream = iteratorToNdjsonStream(runAgentLoop(messages));
+  const {
+    messages,
+    openDashboards,
+  }: { messages: ChatMessage[]; openDashboards?: OpenDashboard[] } =
+    await request.json();
+  const stream = iteratorToNdjsonStream(runAgentLoop(messages, openDashboards));
   return new Response(stream, {
     headers: { "Content-Type": "application/x-ndjson" },
   });

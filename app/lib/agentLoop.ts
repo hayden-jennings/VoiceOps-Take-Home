@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { getSystemPrompt } from "@/lib/systemPrompt";
+import { getSystemPrompt, OpenDashboard } from "@/lib/systemPrompt";
 import { TOOL_SCHEMAS, callTool, toolStatusLabel } from "@/lib/tools";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -15,18 +15,26 @@ export type AgentEvent =
   | { type: "tool_status"; label: string }
   | { type: "text"; text: string }
   | { type: "image"; url: string; alt: string }
+  | {
+      type: "dashboard";
+      instanceId: number;
+      view: string;
+      title: string;
+      params: Record<string, unknown>;
+    }
   | { type: "error"; message: string }
   | { type: "done" };
 
 export async function* runAgentLoop(
-  history: ChatMessage[]
+  history: ChatMessage[],
+  openDashboards: OpenDashboard[] = []
 ): AsyncGenerator<AgentEvent> {
   const messages: Anthropic.Messages.MessageParam[] = history.map((m) => ({
     role: m.role,
     content: m.content,
   }));
 
-  const systemPrompt = getSystemPrompt();
+  const systemPrompt = getSystemPrompt(openDashboards);
 
   try {
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
@@ -95,6 +103,20 @@ export async function* runAgentLoop(
         if (block.name === "generate_chart" && result.ok) {
           const chart = result.data as { url: string; title: string };
           yield { type: "image", url: chart.url, alt: chart.title };
+        } else if (block.name === "show_dashboard" && result.ok) {
+          const dash = result.data as {
+            instanceId: number;
+            view: string;
+            title: string;
+            params: Record<string, unknown>;
+          };
+          yield {
+            type: "dashboard",
+            instanceId: dash.instanceId,
+            view: dash.view,
+            title: dash.title,
+            params: dash.params,
+          };
         }
       }
 
