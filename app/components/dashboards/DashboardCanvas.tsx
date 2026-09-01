@@ -160,6 +160,41 @@ export function DashboardCanvas({
 
   return (
     <div className="p-4">
+      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2">
+        <label className="text-xs text-zinc-500" htmlFor="dash-date-from">
+          From
+        </label>
+        <input
+          id="dash-date-from"
+          type="date"
+          value={params.dateFrom ?? ""}
+          onChange={(e) =>
+            onParamsChange({ ...params, dateFrom: e.target.value || undefined })
+          }
+          className="rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-700"
+        />
+        <label className="text-xs text-zinc-500" htmlFor="dash-date-to">
+          To
+        </label>
+        <input
+          id="dash-date-to"
+          type="date"
+          value={params.dateTo ?? ""}
+          onChange={(e) => onParamsChange({ ...params, dateTo: e.target.value || undefined })}
+          className="rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-700"
+        />
+        {params.dateFrom || params.dateTo ? (
+          <button
+            onClick={() => onParamsChange({ ...params, dateFrom: undefined, dateTo: undefined })}
+            className="text-xs text-zinc-400 hover:text-zinc-600"
+          >
+            Clear
+          </button>
+        ) : (
+          <span className="text-xs text-zinc-400">All time</span>
+        )}
+      </div>
+
       {isEmpty && (
         <div className="mb-6 text-sm text-zinc-400">
           This dashboard is empty. Add an overview or a specific rep, competitor, objection

@@ -14,6 +14,23 @@ type UiMessage =
   | { kind: "text"; role: "user" | "assistant"; content: string }
   | { kind: "image"; url: string; alt: string };
 
+function DownloadIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 3v12m0 0-4-4m4 4 4-4M4 21h16" />
+    </svg>
+  );
+}
+
 function ArrowUpIcon() {
   return (
     <svg
@@ -332,13 +349,22 @@ export default function Chat() {
                     {messages.map((m, i) => {
                       if (m.kind === "image") {
                         return (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            key={i}
-                            src={m.url}
-                            alt={m.alt}
-                            className="max-w-[85%] rounded-xl shadow-sm"
-                          />
+                          <div key={i} className="group relative w-fit max-w-[85%]">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={m.url}
+                              alt={m.alt}
+                              className="max-w-full rounded-xl shadow-sm"
+                            />
+                            <a
+                              href={m.url}
+                              download
+                              aria-label="Download chart"
+                              className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-lg bg-white/90 text-zinc-500 opacity-0 shadow-sm transition-opacity hover:bg-white hover:text-zinc-800 group-hover:opacity-100"
+                            >
+                              <DownloadIcon />
+                            </a>
+                          </div>
                         );
                       }
                       return m.role === "user" ? (

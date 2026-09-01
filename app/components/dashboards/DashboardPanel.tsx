@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { toPng } from "html-to-image";
 import { DashboardCanvas } from "./DashboardCanvas";
 import { DashboardParams } from "@/lib/dashboards/types";
 
@@ -29,6 +30,23 @@ function CloseIcon() {
   );
 }
 
+function DownloadIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 3v12m0 0-4-4m4 4 4-4M4 21h16" />
+    </svg>
+  );
+}
+
 export function DashboardPanel({
   dashboard,
   onClose,
@@ -42,12 +60,34 @@ export function DashboardPanel({
 }) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(dashboard.title);
+  const [downloading, setDownloading] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   function commitTitle() {
     setEditingTitle(false);
     const next = titleDraft.trim();
     if (next && next !== dashboard.title) onTitleChange(dashboard.id, next);
     else setTitleDraft(dashboard.title);
+  }
+
+  async function handleDownload() {
+    if (!contentRef.current || downloading) return;
+    setDownloading(true);
+    try {
+      // target the unclipped content node (not the overflow-y-auto scroll
+      // container) so the export captures everything, not just what's
+      // currently visible on screen
+      const dataUrl = await toPng(contentRef.current, {
+        backgroundColor: "#fafafa",
+        pixelRatio: 2,
+      });
+      const link = document.createElement("a");
+      link.href = dataUrl;
+      link.download = `${dashboard.title.trim() || "dashboard"}.png`;
+      link.click();
+    } finally {
+      setDownloading(false);
+    }
   }
 
   return (
@@ -80,8 +120,16 @@ export function DashboardPanel({
           </button>
         )}
         <button
+          onClick={handleDownload}
+          disabled={downloading}
+          className="ml-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 disabled:opacity-50"
+          aria-label="Download dashboard as PNG"
+        >
+          <DownloadIcon />
+        </button>
+        <button
           onClick={onClose}
-          className="ml-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
+          className="ml-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
           aria-label="Close dashboard"
         >
           <CloseIcon />
@@ -91,10 +139,12 @@ export function DashboardPanel({
           doesn't need to scroll yet, so content stops shifting sideways the
           moment a scrollbar appears/disappears */}
       <div className="flex-1 overflow-y-auto [scrollbar-gutter:stable]">
-        <DashboardCanvas
-          params={dashboard.params}
-          onParamsChange={(p) => onParamsChange(dashboard.id, p)}
-        />
+        <div ref={contentRef} className="bg-zinc-50">
+          <DashboardCanvas
+            params={dashboard.params}
+            onParamsChange={(p) => onParamsChange(dashboard.id, p)}
+          />
+        </div>
       </div>
     </div>
   );
