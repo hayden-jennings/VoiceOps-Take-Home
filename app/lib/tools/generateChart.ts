@@ -209,8 +209,11 @@ export async function generateChart(
     await writeFile(path.join(dir, filename), buffer);
 
     return {
+      // served through /api/generated/[filename], not the raw public/ path
+      // — Next's production server only serves public/ assets that existed
+      // at build time, so a runtime-written file 404s otherwise
       ok: true,
-      data: { url: `/generated/${filename}`, title: spec.title },
+      data: { url: `/api/generated/${filename}`, title: spec.title },
     };
   } catch (err) {
     return { ok: false, error: (err as Error).message };

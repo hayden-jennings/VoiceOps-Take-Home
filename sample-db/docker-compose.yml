@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   postgres:
     image: postgres:16-alpine
@@ -17,3 +16,27 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  # Stretch goal from the original brief — the app runs fully in the same
+  # compose network as the DB, no local Node install needed. Requires
+  # ANTHROPIC_API_KEY to be set — either export it in your shell before
+  # `docker compose up`, or create a `.env` file next to this compose file
+  # (sample-db/.env) with ANTHROPIC_API_KEY=sk-... — docker compose loads
+  # that automatically. Nothing else needs local config; DATABASE_URL here
+  # points at the `postgres` service by its compose network hostname, not
+  # localhost (the app itself never hardcodes localhost — this is the only
+  # place the connection string is assembled).
+  app:
+    build:
+      context: ../app
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://voiceops:voiceops@postgres:5432/voiceops
+      DATABASE_URL_READONLY: postgresql://voiceops_readonly:voiceops_readonly@postgres:5432/voiceops
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY in your shell or sample-db/.env}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-haiku-4-5-20251001}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
