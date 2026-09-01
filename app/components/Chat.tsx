@@ -3,7 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { AgentEvent, ChatMessage } from "@/lib/agentLoop";
-import { DashboardPanel, DashboardInstance } from "@/components/dashboards/DashboardPanel";
+import {
+  DashboardPanel,
+  DashboardInstance,
+} from "@/components/dashboards/DashboardPanel";
+import { NewDashboardMenu } from "@/components/dashboards/NewDashboardMenu";
+import { DashboardParams } from "@/lib/dashboards/types";
 
 type UiMessage =
   | { kind: "text"; role: "user" | "assistant"; content: string }
@@ -32,10 +37,11 @@ export default function Chat() {
   const [sending, setSending] = useState(false);
   const [statusLabel, setStatusLabel] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [dashboards, setDashboards] = useState<DashboardInstance[]>([]);
-  const [activeDashboardId, setActiveDashboardId] = useState<number | null>(null);
-  const [persistedDashboards, setPersistedDashboards] = useState<DashboardInstance[]>([]);
-  const [showReopenMenu, setShowReopenMenu] = useState(false);
+  const [activeDashboard, setActiveDashboard] =
+    useState<DashboardInstance | null>(null);
+  const [persistedDashboards, setPersistedDashboards] = useState<
+    DashboardInstance[]
+  >([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const wasSending = useRef(false);
@@ -76,15 +82,21 @@ export default function Chat() {
     setStatusLabel(null);
 
     const history: ChatMessage[] = nextMessages
-      .filter((m): m is Extract<UiMessage, { kind: "text" }> => m.kind === "text")
+      .filter(
+        (m): m is Extract<UiMessage, { kind: "text" }> => m.kind === "text",
+      )
       .map((m) => ({ role: m.role, content: m.content }));
 
-    const openDashboards = dashboards.map((d) => ({
-      instanceId: d.id,
-      view: d.view,
-      title: d.title,
-      params: d.params,
-    }));
+    const openDashboards = activeDashboard
+      ? [
+          {
+            instanceId: activeDashboard.id,
+            view: activeDashboard.view,
+            title: activeDashboard.title,
+            params: activeDashboard.params,
+          },
+        ]
+      : [];
 
     const res = await fetch("/api/chat", {
       method: "POST",
@@ -143,13 +155,7 @@ export default function Chat() {
             title: event.title,
             params: event.params,
           };
-          setDashboards((prev) => {
-            const exists = prev.some((d) => d.id === instance.id);
-            return exists
-              ? prev.map((d) => (d.id === instance.id ? instance : d))
-              : [...prev, instance];
-          });
-          setActiveDashboardId(instance.id);
+          setActiveDashboard(instance);
           setPersistedDashboards((prev) => {
             const exists = prev.some((d) => d.id === instance.id);
             return exists
@@ -167,34 +173,52 @@ export default function Chat() {
     setStatusLabel(null);
   }
 
-  function reopenDashboard(instance: DashboardInstance) {
-    setDashboards((prev) => {
-      const exists = prev.some((d) => d.id === instance.id);
-      return exists ? prev : [...prev, instance];
-    });
-    setActiveDashboardId(instance.id);
-    setShowReopenMenu(false);
+  function handleDashboardCreated(instance: DashboardInstance) {
+    setActiveDashboard(instance);
+    setPersistedDashboards((prev) => [instance, ...prev]);
+  }
+
+  function handleDashboardDeleted(id: number) {
+    setPersistedDashboards((prev) => prev.filter((d) => d.id !== id));
+    setActiveDashboard((prev) => (prev?.id === id ? null : prev));
   }
 
   async function handleDashboardParamsChange(
     id: number,
-    params: Record<string, unknown>
+    params: DashboardParams,
   ) {
-    const dash = dashboards.find((d) => d.id === id);
-    if (!dash) return;
+    if (!activeDashboard || activeDashboard.id !== id) return;
     // direct REST call — no LLM round-trip for a filter the user changed by hand
     const res = await fetch(`/api/dashboards/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ view: dash.view, title: dash.title, params }),
+      body: JSON.stringify({ title: activeDashboard.title, params }),
     });
     const json = await res.json();
     if (json.ok) {
-      setDashboards((prev) =>
-        prev.map((d) => (d.id === id ? { ...d, params: json.data.params } : d))
+      setActiveDashboard((prev) =>
+        prev ? { ...prev, params: json.data.params } : prev,
       );
       setPersistedDashboards((prev) =>
-        prev.map((d) => (d.id === id ? { ...d, params: json.data.params } : d))
+        prev.map((d) => (d.id === id ? { ...d, params: json.data.params } : d)),
+      );
+    }
+  }
+
+  async function handleDashboardTitleChange(id: number, title: string) {
+    if (!activeDashboard || activeDashboard.id !== id) return;
+    const res = await fetch(`/api/dashboards/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, params: activeDashboard.params }),
+    });
+    const json = await res.json();
+    if (json.ok) {
+      setActiveDashboard((prev) =>
+        prev ? { ...prev, title: json.data.title } : prev,
+      );
+      setPersistedDashboards((prev) =>
+        prev.map((d) => (d.id === id ? { ...d, title: json.data.title } : d)),
       );
     }
   }
@@ -233,7 +257,7 @@ export default function Chat() {
   );
 
   return (
-    <div className="flex h-screen flex-col bg-white">
+    <div className="flex h-full flex-col bg-white">
       <style>{`
         @keyframes logoBreathe {
           0%, 100% { transform: scale(0.85); opacity: 0.4; }
@@ -241,105 +265,140 @@ export default function Chat() {
         }
         .logo-breathe { animation: logoBreathe 1.3s ease-in-out infinite; }
       `}</style>
-      <header className="flex items-center justify-between border-b border-zinc-200 bg-white px-6 py-4">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/voiceops-brand.webp" alt="VoiceOps" className="h-5 w-auto" />
-        {persistedDashboards.length > 0 && (
-          <div className="relative">
-            <button
-              onClick={() => setShowReopenMenu((v) => !v)}
-              className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50"
-            >
-              Dashboards ({persistedDashboards.length})
-            </button>
-            {showReopenMenu && (
-              <div className="absolute right-0 z-10 mt-2 w-64 rounded-xl border border-zinc-200 bg-white py-1 shadow-lg">
-                {persistedDashboards.map((d) => (
-                  <button
-                    key={d.id}
-                    onClick={() => reopenDashboard(d)}
-                    className="block w-full truncate px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50"
-                  >
-                    {d.title}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+      <header className="relative z-10 flex items-center bg-white px-6 py-4">
+        <button
+          onClick={() => {
+            setMessages([]);
+            setActiveDashboard(null);
+            setErrorMsg(null);
+            setInput("");
+          }}
+          className="flex items-center gap-2"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/voiceops-brand.webp"
+            alt="VoiceOps"
+            className="h-5 w-auto"
+          />
+          <span className="text-xl font-medium text-zinc-500 -translate-y-px">
+            chatbot
+          </span>
+        </button>
+        {/* the button itself — always rendered, never clipped, sits to the
+            left of the divider (stays on the header/chat side) and rides
+            along as the panel opens */}
+        <div
+          className={`absolute top-0 flex h-full items-center transition-[right] duration-300 ease-out ${
+            activeDashboard ? "right-[calc(40vw+16px)]" : "right-6"
+          }`}
+        >
+          <NewDashboardMenu
+            persisted={persistedDashboards}
+            onReopen={setActiveDashboard}
+            onCreated={handleDashboardCreated}
+            onDeleted={handleDashboardDeleted}
+          />
+        </div>
       </header>
 
-      {messages.length === 0 && dashboards.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center px-6">
-          <h1 className="mb-6 text-3xl font-semibold text-zinc-900">
-            What should we look into?
-          </h1>
-          <div className="w-full max-w-2xl">{inputBox}</div>
-        </div>
-      ) : (
-        <div className="flex flex-1 overflow-hidden">
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <div className="relative flex-1 overflow-hidden">
-              <div className="h-full overflow-y-auto">
-                <div className="mx-auto flex max-w-3xl flex-col gap-6 px-6 py-8">
-                  {messages.map((m, i) => {
-                    if (m.kind === "image") {
-                      return (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          key={i}
-                          src={m.url}
-                          alt={m.alt}
-                          className="max-w-[85%] rounded-xl shadow-sm"
-                        />
-                      );
-                    }
-                    return m.role === "user" ? (
-                      <div key={i} className="flex justify-end">
-                        <div className="prose-sm max-w-[85%] rounded-xl bg-[#F1F0F5] px-4 py-2.5 text-zinc-900">
-                          {m.content}
-                        </div>
-                      </div>
-                    ) : (
-                      <div
-                        key={i}
-                        className="prose prose-zinc prose-sm max-w-[95%] text-zinc-800"
-                      >
-                        <ReactMarkdown>{m.content}</ReactMarkdown>
-                      </div>
-                    );
-                  })}
-                  {typingIndicator}
-                  {errorMsg && (
-                    <div className="text-sm text-red-500">
-                      Something went wrong: {errorMsg}
-                    </div>
-                  )}
-                  <div ref={bottomRef} />
-                </div>
+      <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {/* hero-vs-scrolling is driven only by whether there's a chat
+              history — independent of whether a dashboard is open, so
+              creating a dashboard without asking the chat anything doesn't
+              collapse the default centered layout into empty blank space */}
+          {messages.length === 0 ? (
+            <div className="flex flex-1 flex-col items-center justify-center px-6">
+              <div className="mb-3 flex items-center gap-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/voiceops-brand.webp"
+                  alt="VoiceOps"
+                  className="h-8 w-auto"
+                />
+                <span className="text-3xl font-medium text-zinc-500 -translate-y-px">
+                  chatbot
+                </span>
               </div>
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-white to-transparent" />
+              <p className="mb-6 text-base text-zinc-500">Ask about your data</p>
+              <div className="w-full max-w-2xl">{inputBox}</div>
             </div>
+          ) : (
+            <>
+              <div className="relative flex-1 overflow-hidden">
+                <div className="mr-1.5 h-full overflow-y-auto">
+                  <div className="mx-auto flex max-w-3xl flex-col gap-6 px-6 py-8">
+                    {messages.map((m, i) => {
+                      if (m.kind === "image") {
+                        return (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            key={i}
+                            src={m.url}
+                            alt={m.alt}
+                            className="max-w-[85%] rounded-xl shadow-sm"
+                          />
+                        );
+                      }
+                      return m.role === "user" ? (
+                        <div key={i} className="flex justify-end">
+                          <div className="prose-sm max-w-[85%] rounded-xl bg-[#F1F0F5] px-4 py-2.5 text-zinc-900">
+                            {m.content}
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          key={i}
+                          className="prose prose-zinc prose-sm max-w-[95%] text-zinc-800"
+                        >
+                          <ReactMarkdown>{m.content}</ReactMarkdown>
+                        </div>
+                      );
+                    })}
+                    {typingIndicator}
+                    {errorMsg && (
+                      <div className="text-sm text-red-500">
+                        Something went wrong: {errorMsg}
+                      </div>
+                    )}
+                    <div ref={bottomRef} />
+                  </div>
+                </div>
+                {/* sibling of the scrolling div, not a descendant — otherwise
+                    they'd scroll away with the content instead of staying
+                    pinned to the visible top/bottom edges. Inset from the
+                    right so the fade doesn't sit on top of the scrollbar. */}
+                <div className="pointer-events-none absolute left-0 right-4 top-0 h-10 bg-gradient-to-b from-white to-transparent" />
+                <div className="pointer-events-none absolute left-0 right-4 bottom-0 h-12 bg-gradient-to-t from-white to-transparent" />
+              </div>
 
-            <div className="px-6 py-4">
-              <div className="mx-auto max-w-3xl">{inputBox}</div>
-            </div>
-          </div>
+              <div className="px-6 py-4">
+                <div className="mx-auto max-w-3xl">{inputBox}</div>
+              </div>
+            </>
+          )}
+        </div>
 
-          {dashboards.length > 0 && (
+        {/* reserves the sliding width; the actual card styling (border,
+            rounded-lg on all 4 corners, shadow) lives on DashboardPanel
+            itself, inset from every edge by this wrapper's padding so it
+            reads as a floating card rather than a panel flush to the page */}
+        <div
+          className={`shrink-0 overflow-hidden transition-[width] duration-300 ease-out ${
+            activeDashboard ? "w-[40vw] p-3" : "w-0"
+          }`}
+        >
+          {activeDashboard && (
             <DashboardPanel
-              dashboards={dashboards}
-              activeId={activeDashboardId}
-              onSelect={setActiveDashboardId}
-              onClose={() => {
-                setDashboards([]);
-                setActiveDashboardId(null);
-              }}
+              dashboard={activeDashboard}
+              onClose={() => setActiveDashboard(null)}
               onParamsChange={handleDashboardParamsChange}
+              onTitleChange={handleDashboardTitleChange}
             />
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

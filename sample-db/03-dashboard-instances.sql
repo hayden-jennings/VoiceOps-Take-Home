@@ -3,7 +3,10 @@
 
 CREATE TABLE dashboard_instances (
   id SERIAL PRIMARY KEY,
-  view TEXT NOT NULL CHECK (view IN ('rep_scorecard', 'competitive_intelligence', 'call_explorer', 'objection_funnel')),
+  -- a dashboard is a single unified canvas now — view stays for schema
+  -- stability but every row is 'dashboard'; what it contains is entirely
+  -- driven by params (overviews + per-entity cards), not by view
+  view TEXT NOT NULL CHECK (view = 'dashboard'),
   title TEXT NOT NULL,
   params JSONB NOT NULL DEFAULT '{}',
   created_at TIMESTAMP DEFAULT NOW(),

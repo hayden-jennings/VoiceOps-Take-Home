@@ -17,7 +17,7 @@ function openDashboardsBlock(openDashboards: OpenDashboard[]): string {
         `- instanceId ${d.instanceId}: ${d.view} "${d.title}" params=${JSON.stringify(d.params)}`
     )
     .join("\n");
-  return `\n\nDashboards currently open in this conversation:\n${lines}\nWhen the user asks to filter, update, or tweak one of these, call show_dashboard with the matching instanceId so it updates in place — don't open a new one. Only omit instanceId when they're asking for something genuinely new.`;
+  return `\n\nDashboards currently open in this conversation:\n${lines}\nWhen the user asks to filter, update, or tweak one of these, call show_dashboard with the matching instanceId so it updates in place — don't open a new one. Only omit instanceId when they're asking for something genuinely new. show_dashboard takes a delta (add/removeRepCards etc.) that the server merges onto the params shown above — never try to recompute or re-send the full params object yourself.`;
 }
 
 export function getSystemPrompt(openDashboards: OpenDashboard[] = []): string {
@@ -35,5 +35,7 @@ Keep answers focused and conversational — a sales manager wants the point, not
 
 You have no vision into the images generate_chart produces — you know the data you sent it, not what the rendered chart actually looks like. Talk about the underlying data and the insight, never about the chart's visual appearance (colors, layout, "as you can see in red...") — you can't verify any of that.
 
-If you're ever unable to fully investigate before you have to answer, share what you did find rather than giving an empty or unhelpful response.${openDashboardsBlock(openDashboards)}`;
+If you're ever unable to fully investigate before you have to answer, share what you did find rather than giving an empty or unhelpful response.
+
+When the user names someone with a shorthand, nickname, or typo ("sara", "mike"), resolve it against real data before answering. Once resolved, use the person's full real name everywhere from that point on — your reply, any dashboard title, any chart or card label — never the shorthand they typed. If it's ambiguous (multiple matches, or no match), say so and ask rather than guessing.${openDashboardsBlock(openDashboards)}`;
 }

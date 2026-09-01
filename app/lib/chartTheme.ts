@@ -31,3 +31,15 @@ export const CHROME = {
 // an explicit registerFont() call, which was the root cause of the font falling
 // back to a generic default regardless of what was named here.
 export const FONT_FAMILY = "Inter";
+
+// Formats raw DB enum values (e.g. "STICKER_SHOCK", "NOT_DISCUSSED") for
+// display — never applied to the underlying data itself (which stays the raw
+// value for matching/click handlers), only to what's actually rendered.
+export function titleCase(s: string): string {
+  return s
+    .toLowerCase()
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}

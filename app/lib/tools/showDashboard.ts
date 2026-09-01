@@ -1,12 +1,12 @@
-import { upsertDashboardInstance, DashboardView } from "@/lib/dashboards/persistInstance";
+import {
+  upsertDashboardInstance,
+  getDashboardInstance,
+  DashboardView,
+} from "@/lib/dashboards/persistInstance";
+import { DashboardDelta, DashboardParams, applyDashboardDelta } from "@/lib/dashboards/types";
 import { ToolResult } from "@/lib/types";
 
-export interface ShowDashboardInput {
-  view: DashboardView;
-  title: string;
-  params: Record<string, unknown>;
-  instanceId?: number;
-}
+export type ShowDashboardInput = DashboardDelta & { instanceId?: number };
 
 export interface ShownDashboard {
   instanceId: number;
@@ -18,7 +18,24 @@ export interface ShownDashboard {
 export async function showDashboard(
   input: ShowDashboardInput
 ): Promise<ToolResult<ShownDashboard>> {
-  const result = await upsertDashboardInstance(input);
+  let existingParams: DashboardParams = {};
+  let title = input.title;
+
+  if (input.instanceId) {
+    const existing = await getDashboardInstance(input.instanceId);
+    if (!existing.ok) return existing;
+    existingParams = existing.data.params as DashboardParams;
+    title = title ?? existing.data.title;
+  }
+
+  const params = applyDashboardDelta(existingParams, input);
+
+  const result = await upsertDashboardInstance({
+    instanceId: input.instanceId,
+    view: "dashboard",
+    title: title ?? "New dashboard",
+    params: params as unknown as Record<string, unknown>,
+  });
   if (!result.ok) return result;
   return {
     ok: true,

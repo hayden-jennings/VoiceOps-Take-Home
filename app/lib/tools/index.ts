@@ -167,34 +167,45 @@ export const TOOL_SCHEMAS: Anthropic.Tool[] = [
     name: "show_dashboard",
     description:
       "Open or update a persistent dashboard panel next to the chat — something the user can keep open, filter by hand, and come back to later. Distinct from generate_chart: use this when the user wants an ongoing view into a rep, a competitor, objection patterns, or a set of calls to browse, not a one-off visual. " +
-      "Pass instanceId to update a dashboard already open in this conversation instead of opening a new one (e.g. the user asks to change a filter on it). " +
-      "params shape per view — rep_scorecard: {repName?, dateFrom?, dateTo?}. competitive_intelligence: {competitor?, dateFrom?, dateTo?}. objection_funnel: {objectionType?, repName?, dateFrom?, dateTo?}. call_explorer: {repName?, disposition?, competitor?, objectionOutcome?, summaryContains?, dateFrom?, dateTo?} — same fields as the matching query tool.",
+      "A dashboard is one canvas that can hold reps, competitors, objections, and calls together — it's not scoped to a single entity type. Pass instanceId to update a dashboard already open in this conversation instead of opening a new one. " +
+      "This tool takes a DELTA, not the full desired state — describe only what's changing, and the server merges it onto whatever's already on the dashboard. Never try to reconstruct or re-send existing content; that's the server's job, not yours. " +
+      "add/removeOverviews: ('reps'|'competitors'|'objections'|'calls')[] — the \"all-X\" high-level sections (all reps ranked by call volume + leaderboard, all competitor mentions + price trend, all objection types + outcome trend, or the full call list). " +
+      "add/removeRepCards, add/removeCompetitorCards: string[] of names (partial match resolved client-side, e.g. 'Sarah' matches 'Sarah Johnson') — a specific entity's detail card, shown alongside the overviews, not instead of them. " +
+      "add/removeObjectionCards: string[], one of PRICE/COVERAGE/TRUST/TIMING/NONE — 'all objection types' means adding all five. objectionRepFilter: string, sets the default rep filter applied to every objection card on this dashboard (each card also has its own 'Rep' dropdown the user can override by hand) — set this whenever the request is about one rep's objection handling specifically, e.g. 'show all of Sarah's objection types' = addObjectionCards: all five + objectionRepFilter: 'Sarah Johnson'. " +
+      "add/removeCallCards: string[] of rep names — that rep's calls in a compact list. " +
+      "For a broad request like 'show me everything on <rep>' or 'all of <rep>'s stats', compose generously in one call rather than settling for just one card: addRepCards (skill scores), addCallCards (their calls), and addObjectionCards + objectionRepFilter (their objection handling) together, not just whichever one the request happens to mention first. " +
+      "clear: true wipes every overview and card before applying this call's adds — use it for \"start over\" requests like \"remove everything and just show David's stats\". " +
+      "title/dateFrom/dateTo: only set if actually changing; omitted means unchanged (title defaults to 'New dashboard' only when creating fresh with no title given). Always use the full canonical name you actually resolved (from list_reps / get_rep_performance / a dashboard's own data) in the title and every card — never echo back the user's shorthand or typo. If they say 'sara' and you found Sarah Johnson, everything you write says \"Sarah Johnson\", not \"sara\".",
     input_schema: {
       type: "object",
       properties: {
-        view: {
-          type: "string",
-          enum: [
-            "rep_scorecard",
-            "competitive_intelligence",
-            "call_explorer",
-            "objection_funnel",
-          ],
-        },
-        title: {
-          type: "string",
-          description: "Short human title, e.g. 'Sarah Johnson — Scorecard'",
-        },
-        params: {
-          type: "object",
-          description: "View-specific filters — see tool description for the shape per view",
-        },
         instanceId: {
           type: "number",
           description: "Update this existing dashboard instance instead of creating a new one",
         },
+        title: { type: "string", description: "Short human title, e.g. 'Sarah Johnson — Scorecard'" },
+        dateFrom: { type: "string" },
+        dateTo: { type: "string" },
+        clear: {
+          type: "boolean",
+          description: "Wipe all existing overviews/cards before applying this call's adds",
+        },
+        addOverviews: { type: "array", items: { type: "string", enum: ["reps", "competitors", "objections", "calls"] } },
+        removeOverviews: { type: "array", items: { type: "string", enum: ["reps", "competitors", "objections", "calls"] } },
+        addRepCards: { type: "array", items: { type: "string" } },
+        removeRepCards: { type: "array", items: { type: "string" } },
+        addCompetitorCards: { type: "array", items: { type: "string" } },
+        removeCompetitorCards: { type: "array", items: { type: "string" } },
+        addObjectionCards: { type: "array", items: { type: "string" } },
+        removeObjectionCards: { type: "array", items: { type: "string" } },
+        objectionRepFilter: {
+          type: "string",
+          description: "Default rep filter for every objection card on this dashboard",
+        },
+        addCallCards: { type: "array", items: { type: "string" } },
+        removeCallCards: { type: "array", items: { type: "string" } },
       },
-      required: ["view", "title", "params"],
+      required: [],
     },
   },
 ];

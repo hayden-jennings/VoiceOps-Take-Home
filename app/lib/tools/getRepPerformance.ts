@@ -48,7 +48,8 @@ export async function getRepPerformance(
          join coaching_skills s on s.id = cs.skill_id
          where ($1::text is null or (p.first_name || ' ' || p.last_name) ilike $1)
            and ($2::timestamp is null or c.occurred_at >= $2)
-           and ($3::timestamp is null or c.occurred_at <= $3)`,
+           and ($3::timestamp is null or c.occurred_at <= $3)
+         order by s.id`,
         [repFilter, dateFrom, dateTo]
       ),
     ]);

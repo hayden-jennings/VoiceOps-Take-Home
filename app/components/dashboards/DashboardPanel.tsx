@@ -1,116 +1,100 @@
 "use client";
 
-import { RepScorecardView, RepScorecardParams } from "./RepScorecardView";
-import {
-  CompetitiveIntelligenceView,
-  CompetitiveIntelligenceParams,
-} from "./CompetitiveIntelligenceView";
-import { ObjectionFunnelView, ObjectionFunnelParams } from "./ObjectionFunnelView";
-import { CallExplorerView, CallExplorerParams } from "./CallExplorerView";
+import { useState } from "react";
+import { DashboardCanvas } from "./DashboardCanvas";
+import { DashboardParams } from "@/lib/dashboards/types";
 
 export interface DashboardInstance {
   id: number;
   view: string;
   title: string;
-  params: Record<string, unknown>;
+  params: DashboardParams;
+  updatedAt?: string;
 }
 
-function DashboardView({
-  view,
-  params,
-  onParamsChange,
-}: {
-  view: string;
-  params: Record<string, unknown>;
-  onParamsChange: (params: Record<string, unknown>) => void;
-}) {
-  if (view === "rep_scorecard") {
-    return (
-      <RepScorecardView
-        params={params as RepScorecardParams}
-        onParamsChange={onParamsChange as (p: RepScorecardParams) => void}
-      />
-    );
-  }
-  if (view === "competitive_intelligence") {
-    return (
-      <CompetitiveIntelligenceView
-        params={params as CompetitiveIntelligenceParams}
-        onParamsChange={onParamsChange as (p: CompetitiveIntelligenceParams) => void}
-      />
-    );
-  }
-  if (view === "objection_funnel") {
-    return (
-      <ObjectionFunnelView
-        params={params as ObjectionFunnelParams}
-        onParamsChange={onParamsChange as (p: ObjectionFunnelParams) => void}
-      />
-    );
-  }
-  if (view === "call_explorer") {
-    return (
-      <CallExplorerView
-        params={params as CallExplorerParams}
-        onParamsChange={onParamsChange as (p: CallExplorerParams) => void}
-      />
-    );
-  }
+function CloseIcon() {
   return (
-    <div className="p-4 text-sm text-zinc-400">
-      This view (&ldquo;{view}&rdquo;) isn&apos;t built yet.
-    </div>
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M18 6 6 18M6 6l12 12" />
+    </svg>
   );
 }
 
 export function DashboardPanel({
-  dashboards,
-  activeId,
-  onSelect,
+  dashboard,
   onClose,
   onParamsChange,
+  onTitleChange,
 }: {
-  dashboards: DashboardInstance[];
-  activeId: number | null;
-  onSelect: (id: number) => void;
+  dashboard: DashboardInstance;
   onClose: () => void;
-  onParamsChange: (id: number, params: Record<string, unknown>) => void;
+  onParamsChange: (id: number, params: DashboardParams) => void;
+  onTitleChange: (id: number, title: string) => void;
 }) {
-  const active = dashboards.find((d) => d.id === activeId) ?? dashboards[0];
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(dashboard.title);
+
+  function commitTitle() {
+    setEditingTitle(false);
+    const next = titleDraft.trim();
+    if (next && next !== dashboard.title) onTitleChange(dashboard.id, next);
+    else setTitleDraft(dashboard.title);
+  }
 
   return (
-    <div className="flex h-full w-[420px] shrink-0 flex-col border-l border-zinc-200 bg-zinc-50">
-      <div className="flex items-center gap-2 overflow-x-auto border-b border-zinc-200 bg-white px-3 py-2">
-        {dashboards.map((d) => (
-          <button
-            key={d.id}
-            onClick={() => onSelect(d.id)}
-            className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-              active && d.id === active.id
-                ? "bg-zinc-900 text-white"
-                : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
-            }`}
-          >
-            {d.title}
-          </button>
-        ))}
-        <button
-          onClick={onClose}
-          className="ml-auto shrink-0 text-xs text-zinc-400 hover:text-zinc-600"
-        >
-          Hide
-        </button>
-      </div>
-      <div className="flex-1 overflow-y-auto">
-        {active ? (
-          <DashboardView
-            view={active.view}
-            params={active.params}
-            onParamsChange={(p) => onParamsChange(active.id, p)}
+    <div className="flex h-full w-full shrink-0 flex-col overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 shadow-sm">
+      <div className="flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-3">
+        {editingTitle ? (
+          <input
+            autoFocus
+            value={titleDraft}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            onBlur={commitTitle}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitTitle();
+              if (e.key === "Escape") {
+                setTitleDraft(dashboard.title);
+                setEditingTitle(false);
+              }
+            }}
+            className="min-w-0 flex-1 truncate rounded-md border border-zinc-200 px-1.5 py-0.5 text-base font-semibold text-zinc-900 outline-none"
           />
         ) : (
-          <div className="p-4 text-sm text-zinc-400">No dashboard open.</div>
+          <button
+            onClick={() => {
+              setTitleDraft(dashboard.title);
+              setEditingTitle(true);
+            }}
+            className="min-w-0 flex-1 truncate rounded-md px-1.5 py-0.5 text-left text-base font-semibold text-zinc-900 hover:bg-zinc-50"
+          >
+            {dashboard.title}
+          </button>
         )}
+        <button
+          onClick={onClose}
+          className="ml-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
+          aria-label="Close dashboard"
+        >
+          <CloseIcon />
+        </button>
+      </div>
+      {/* scrollbar-gutter reserves the scrollbar's space even when content
+          doesn't need to scroll yet, so content stops shifting sideways the
+          moment a scrollbar appears/disappears */}
+      <div className="flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+        <DashboardCanvas
+          params={dashboard.params}
+          onParamsChange={(p) => onParamsChange(dashboard.id, p)}
+        />
       </div>
     </div>
   );

@@ -1,17 +1,17 @@
 import { db } from "@/lib/db";
 import { ToolResult } from "@/lib/types";
 
-export type DashboardView =
-  | "rep_scorecard"
-  | "competitive_intelligence"
-  | "call_explorer"
-  | "objection_funnel";
+// A dashboard is now a single unified canvas type — the "view" column stays
+// for schema stability but every row is "dashboard"; what it contains is
+// entirely driven by params (overviews + per-entity cards), not by view.
+export type DashboardView = "dashboard";
 
 export interface DashboardInstance {
   id: number;
   view: DashboardView;
   title: string;
   params: Record<string, unknown>;
+  updatedAt?: string;
 }
 
 export interface UpsertDashboardInput {
@@ -74,12 +74,25 @@ export async function getDashboardInstance(
   }
 }
 
+export async function deleteDashboardInstance(id: number): Promise<ToolResult<{ id: number }>> {
+  try {
+    const { rowCount } = await db.query(`delete from dashboard_instances where id = $1`, [id]);
+    if (rowCount === 0) {
+      return { ok: false, error: `No dashboard instance with id ${id}` };
+    }
+    return { ok: true, data: { id } };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
 export async function listDashboardInstances(): Promise<
   ToolResult<DashboardInstance[]>
 > {
   try {
     const { rows } = await db.query(
-      `select id, view, title, params from dashboard_instances order by updated_at desc`
+      `select id, view, title, params, updated_at as "updatedAt"
+       from dashboard_instances order by updated_at desc`
     );
     return { ok: true, data: rows };
   } catch (err) {
